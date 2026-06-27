@@ -1,5 +1,11 @@
+import io
 import re
 from typing import Any, Optional
+
+import pdfminer.high_level
+import pdfplumber
+
+from app.exceptions import ConversionError
 
 # Pattern for MasterFormat-style partial numbering (e.g., ".1", ".2", ".10")
 PARTIAL_NUMBERING_PATTERN = re.compile(r"^\.\d+$")
@@ -232,3 +238,94 @@ def extract_form_content_from_words(page: Any) -> Optional[str]:
             idx += 1
 
     return "\n".join(result_lines)
+
+
+def merge_partial_numbering_lines(text: str) -> str:
+    """
+    Post-process extracted text to merge MasterFormat-style partial numbering
+    with the following text line.
+
+    MasterFormat documents use partial numbering like:
+        .1  The intent of this Request for Proposal...
+        .2  Available information relative to...
+
+    Some PDF extractors split these into separate lines:
+        .1
+        The intent of this Request for Proposal...
+
+    This function merges them back together.
+    """
+    lines = text.split("\n")
+    result_lines: list[str] = []
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        if PARTIAL_NUMBERING_PATTERN.match(stripped):
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+
+            if j < len(lines):
+                next_line = lines[j].strip()
+                result_lines.append(f"{stripped} {next_line}")
+                i = j + 1
+            else:
+                result_lines.append(line)
+                i += 1
+        else:
+            result_lines.append(line)
+            i += 1
+
+    return "\n".join(result_lines)
+
+
+def convert_pdf_to_markdown(file_bytes: bytes) -> str:
+    """
+    Converts PDF bytes to Markdown.
+    Supports extracting tables into aligned Markdown format (via pdfplumber).
+    Falls back to pdfminer if pdfplumber is missing content or fails.
+    """
+    pdf_bytes = io.BytesIO(file_bytes)
+
+    try:
+        markdown_chunks: list[str] = []
+        form_page_count = 0
+
+        with pdfplumber.open(pdf_bytes) as pdf:
+            for page in pdf.pages:
+                page_content = extract_form_content_from_words(page)
+
+                if page_content is not None:
+                    form_page_count += 1
+                    if page_content.strip():
+                        markdown_chunks.append(page_content)
+                else:
+                    text = page.extract_text()
+                    if text and text.strip():
+                        markdown_chunks.append(text.strip())
+
+                page.close()
+
+        if form_page_count == 0:
+            pdf_bytes.seek(0)
+            markdown = pdfminer.high_level.extract_text(pdf_bytes)
+        else:
+            markdown = "\n\n".join(markdown_chunks).strip()
+    except Exception:
+        pdf_bytes.seek(0)
+        try:
+            markdown = pdfminer.high_level.extract_text(pdf_bytes)
+        except Exception as exc:
+            raise ConversionError(f"Could not parse PDF: {exc}") from exc
+
+    if not markdown:
+        pdf_bytes.seek(0)
+        try:
+            markdown = pdfminer.high_level.extract_text(pdf_bytes)
+        except Exception:
+            pass
+
+    return merge_partial_numbering_lines(markdown).strip()
