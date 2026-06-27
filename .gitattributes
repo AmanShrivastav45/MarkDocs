@@ -1,0 +1,2 @@
+*.pdf -text -diff binary
+*.docx -text -diff binary
