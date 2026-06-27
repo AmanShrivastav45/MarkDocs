@@ -15,6 +15,6 @@ def detect_file_type(data: bytes) -> Optional[str]:
             with zipfile.ZipFile(io.BytesIO(data)) as zf:
                 if "word/document.xml" in zf.namelist():
                     return "docx"
-        except zipfile.BadZipFile:
+        except Exception:
             return None
     return None

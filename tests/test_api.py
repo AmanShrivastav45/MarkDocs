@@ -72,3 +72,25 @@ def test_convert_rejects_oversized_file(monkeypatch):
         files={"file": ("big.pdf", io.BytesIO(big_content), "application/pdf")},
     )
     assert response.status_code == 413
+
+
+def test_convert_sets_warning_header_for_empty_output():
+    blank_pdf = (
+        b"%PDF-1.4\n"
+        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>\nendobj\n"
+        b"xref\n0 4\n"
+        b"0000000000 65535 f \n"
+        b"0000000009 00000 n \n"
+        b"0000000058 00000 n \n"
+        b"0000000115 00000 n \n"
+        b"trailer\n<< /Size 4 /Root 1 0 R >>\n"
+        b"startxref\n209\n%%EOF\n"
+    )
+    response = client.post(
+        "/convert",
+        files={"file": ("blank.pdf", io.BytesIO(blank_pdf), "application/pdf")},
+    )
+    assert response.status_code == 200
+    assert response.headers["x-conversion-warning"] == "empty-or-near-empty-output"
