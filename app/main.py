@@ -8,7 +8,7 @@ from app.converters.pdf_converter import convert_pdf_to_markdown
 from app.detectors import detect_file_type
 from app.exceptions import ConversionError
 
-app = FastAPI(title="doc-to-markdown-service")
+app = FastAPI(title="MarkDocs")
 
 EMPTY_OUTPUT_THRESHOLD = 20
 CHUNK_SIZE = 1024 * 1024  # 1 MB

@@ -1,4 +1,4 @@
-# doc-to-markdown-service
+# MarkDocs
 
 A standalone FastAPI microservice that converts PDF and DOCX documents to
 Markdown, without depending on the `markitdown` PyPI package. See
